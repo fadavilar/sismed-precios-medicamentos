@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Precios de medicamentos SISMED</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%230B7A5F%22/><path d=%22M13 6h6v7h7v6h-7v7h-6v-7H6v-6h7z%22 fill=%22white%22/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<!-- Pantalla de acceso. La app y los datos están cifrados (AES-256-GCM); la contraseña
+     deriva la clave en el navegador (PBKDF2-SHA256) y nunca sale de este equipo.
+     Generada por agent/build_site.py desde site/acceso.html. -->
+<style id="gate-style">
+  :root{ --canvas:#EEF2F1; --paper:#FFFFFF; --ink:#102A3A; --ink-2:#3B5260; --muted:#62757D; --line:#D3DDDA; --brand:#0B7A5F; --brand-soft:#DDF0E9; --high:#CF4436; color-scheme:light; }
+  @media (prefers-color-scheme: dark){ :root{ --canvas:#0C171C; --paper:#122229; --ink:#E7F0F0; --ink-2:#B9C9CC; --muted:#8FA2A7; --line:#24383F; --brand:#3CC59A; --brand-soft:#123A31; --high:#E5675A; color-scheme:dark; } }
+  .gate *{ box-sizing:border-box; }
+  body.locked{ margin:0; min-height:100vh; display:grid; place-items:center; background:var(--canvas); color:var(--ink); font:400 17px/1.5 "Atkinson Hyperlegible Next", "Segoe UI", system-ui, sans-serif; padding:20px; }
+  .gate{ width:min(400px, 100%); background:var(--paper); border:1px solid var(--line); border-radius:18px; padding:28px 26px 24px; box-shadow:0 10px 30px -18px rgba(16,42,58,.4); }
+  .gate-mark{ width:44px; height:44px; display:block; margin-bottom:14px; }
+  .gate-mark rect{ fill:var(--brand); } .gate-mark path{ fill:#fff; }
+  .gate h1{ font:800 1.55rem/1.1 "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif; margin:0 0 6px; letter-spacing:-.015em; }
+  .gate p{ margin:0 0 18px; color:var(--ink-2); font-size:.95rem; }
+  .gate label{ display:block; font-weight:700; font-size:.85rem; color:var(--ink-2); margin-bottom:6px; }
+  .gate input[type="password"]{ width:100%; font-weight:500; font-size:1rem; font-family:inherit; color:var(--ink); background:var(--paper); border:2px solid var(--ink); border-radius:12px; padding:11px 13px; }
+  .gate input[type="password"]:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 4px var(--brand-soft); }
+  .gate .remember{ display:flex; align-items:center; gap:8px; font-weight:400; font-size:.88rem; margin:12px 0 18px; color:var(--ink-2); }
+  .gate button{ width:100%; appearance:none; border:0; border-radius:12px; background:var(--brand); color:#fff; font-weight:700; font-size:1rem; font-family:inherit; padding:12px; cursor:pointer; }
+  @media (prefers-color-scheme: dark){ .gate button{ color:#062a20; } }
+  .gate button:disabled{ opacity:.6; cursor:progress; }
+  .gate .err{ color:var(--high); font-weight:700; font-size:.9rem; min-height:1.4em; margin:10px 0 0; }
+  .gate :focus-visible{ outline:3px solid var(--brand); outline-offset:2px; }
+</style>
+</head>
+<body class="locked">
+<form class="gate" id="gate" autocomplete="off">
+  <svg class="gate-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M13 6h6v7h7v6h-7v7h-6v-7H6v-6h7z"/></svg>
+  <h1>Precios de medicamentos</h1>
+  <p>Escribe la contraseña para ver la app. Si no la tienes, pídesela al autor.</p>
+  <label for="pw">Contraseña</label>
+  <input type="password" id="pw" name="pw" required autofocus autocomplete="current-password">
+  <label class="remember"><input type="checkbox" id="remember"> Recordar en este equipo</label>
+  <button type="submit" id="go">Entrar</button>
+  <p class="err" id="err" role="alert"></p>
+</form>
+<script>
+(function(){
+  "use strict";
+  const SALT = "bb61516f6912e1687e53935f6b7d8ded", ITER = 600000, KEY = "sismed_clave";
+  const hex = (h)=> new Uint8Array(h.match(/../g).map(b=> parseInt(b, 16)));
+  const b64 = (u)=> btoa(String.fromCharCode.apply(null, u));
+  const unb64 = (s)=> Uint8Array.from(atob(s), c=> c.charCodeAt(0));
+  const realFetch = window.fetch.bind(window);
+  let aes = null;
+
+  async function derive(pw){
+    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveBits"]);
+    const bits = new Uint8Array(await crypto.subtle.deriveBits({ name:"PBKDF2", hash:"SHA-256", salt:hex(SALT), iterations:ITER }, base, 512));
+    return bits.slice(0, 32);
+  }
+  const importKey = (raw)=> crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
+  async function decrypt(buf){
+    const u = new Uint8Array(buf);
+    return crypto.subtle.decrypt({ name:"AES-GCM", iv:u.slice(0, 12) }, aes, u.slice(12));
+  }
+  // la app pide data/*.json: se sirve el .bin cifrado y se entrega descifrado
+  window.fetch = async function(input, init){
+    const url = typeof input === "string" ? input : (input && input.url) || "";
+    const m = aes && url.match(/^(?:\.\/)?(data\/[^?#]+\.json)(\?[^#]*)?$/);
+    if(!m) return realFetch(input, init);
+    const r = await realFetch(m[1]+".bin"+(m[2] || ""), init);
+    if(!r.ok) return r;
+    const plain = await decrypt(await r.arrayBuffer());
+    return new Response(plain, { status:200, headers:{ "Content-Type":"application/json" } });
+  };
+  async function open(raw, remember){
+    aes = await importKey(raw);
+    const r = await realFetch("app.bin", { cache:"no-cache" });
+    if(!r.ok) throw new Error("app.bin respondió "+r.status);
+    let bundle;
+    try { bundle = JSON.parse(new TextDecoder().decode(await decrypt(await r.arrayBuffer()))); }
+    catch(e){ aes = null; throw new Error("clave"); }
+    const store = remember ? localStorage : sessionStorage;
+    try { store.setItem(KEY, b64(raw)); } catch(e){}
+    document.getElementById("gate-style").remove();
+    document.body.className = "";
+    const style = document.createElement("style"); style.textContent = bundle.css; document.head.appendChild(style);
+    document.body.innerHTML = bundle.html;
+    bundle.scripts.forEach(src=>{ const s = document.createElement("script"); s.textContent = src; document.body.appendChild(s); });
+  }
+  const form = document.getElementById("gate"), err = document.getElementById("err"), go = document.getElementById("go");
+  form.addEventListener("submit", async (e)=>{
+    e.preventDefault(); err.textContent = ""; go.disabled = true; go.textContent = "Abriendo…";
+    try { await open(await derive(document.getElementById("pw").value), document.getElementById("remember").checked); }
+    catch(x){
+      go.disabled = false; go.textContent = "Entrar";
+      err.textContent = x.message === "clave" ? "La contraseña no es correcta." : "No se pudo abrir la app ("+x.message+").";
+      document.getElementById("pw").select();
+    }
+  });
+  // si este equipo ya tiene la clave (sesión o «recordar»), se abre directo
+  let saved = null;
+  try { saved = sessionStorage.getItem(KEY) || localStorage.getItem(KEY); } catch(e){}
+  if(saved) open(unb64(saved), !!localStorage.getItem(KEY)).catch(()=>{ try { sessionStorage.removeItem(KEY); localStorage.removeItem(KEY); } catch(e){} });
+})();
+</script>
+</body>
+</html>
