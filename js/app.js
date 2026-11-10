@@ -989,7 +989,14 @@
       // precio por año, con la misma consulta
       const yrs = (ATC[i][2]||[]).filter(y=> by[y]);
       TER.yearly = yrs.map(y=>{ const l = brandize(unitPrices(by[y])); const me = l.find(p=> p.cum === sel.cum); const grp = groupOfList(l).ok, pp = grp.map(p=> p.price).sort((a,c)=> a-c);
-        return { y, me: me ? me.price : null, meU: me ? me.u : null, meV: me ? me.v : null, grpV: grp.length ? grp.reduce((t,p)=> t+p.v, 0) : null, grpU: grp.length ? grp.reduce((t,p)=> t+p.u, 0) : null, med: center(grp), p25: quantile(pp,bq[0]), p75: quantile(pp,bq[1]), n: pp.length }; });
+        return { y, _g: grp, _me: me, me: me ? me.price : null, meU: me ? me.u : null, meV: me ? me.v : null, grpV: grp.length ? grp.reduce((t,p)=> t+p.v, 0) : null, grpU: grp.length ? grp.reduce((t,p)=> t+p.u, 0) : null, med: center(grp), p25: quantile(pp,bq[0]), p75: quantile(pp,bq[1]), n: pp.length }; });
+      // todas las marcas del grupo por año (las mismas del termómetro: todas las marcas del principio activo en esa forma, o solo las equivalentes)
+      const brandLabel = (p)=> prodName(p)+(molMode && p.conc ? " "+concLabel(p.conc) : "")+" ("+labName(p)+")";
+      const brandMap = new Map();
+      TER.yearly.forEach(r=>{ const items = r._me && r._g.indexOf(r._me) < 0 ? r._g.concat([r._me]) : r._g;
+        items.forEach(p=>{ let a = brandMap.get(p.cum); if(!a){ a = { key:p.cum, name:brandLabel(p), prod:prodName(p), lab:labName(p), conc:p.conc ? concLabel(p.conc) : "", v:0, byY:new Map() }; brandMap.set(p.cum, a); }
+          a.v += p.v; a.byY.set(r.y, { price:p.price, v:p.v, u:p.u }); }); });
+      const brandsY = Array.from(brandMap.values()).sort((a,c)=> (c.key === sel.cum) - (a.key === sel.cum) || c.v - a.v);
       function exportTer(){
         const labs = new Map(); peers.forEach(p=>{ const k = labName(p); let a = labs.get(k); if(!a){ a = { lab:k, n:0, v:0, u:0 }; labs.set(k,a); } a.n++; a.v += p.v; a.u += p.u; });
         const save = TER.groupBy; TER.groupBy = "marca"; const bc = brandCols(), br = brandRows(); TER.groupBy = save;
@@ -1002,6 +1009,9 @@
             Array.from(labs.values()).map(a=> Object.assign(a, { price:a.v/a.u, dSel:(a.v/a.u)/sel.price-1, sv:a.v/totV, su:a.u/totU })).sort((a,c)=> c.v-a.v)),
           toSheet("Por año", "Precio por año: "+prodName(sel)+" frente a "+groupTxt,
             [ {h:"Año", k:"y", t:"int"}, {h:"Precio del producto de referencia (COP)", k:"me", t:"money"}, {h:"Unidades del producto de referencia", k:"meU", t:"int"}, {h:refCap()+" (COP)", k:"med", t:"money"}, {h:"Límite bajo, "+bq[2]+" (COP)", k:"p25", t:"money"}, {h:"Límite alto, "+bq[3]+" (COP)", k:"p75", t:"money"}, {h:"Marcas del grupo", k:"n", t:"int"}, {h:"Ventas del producto de referencia (COP)", k:"meV", t:"money"}, {h:"Ventas totales del grupo (COP)", k:"grpV", t:"money"}, {h:"Unidades del grupo", k:"grpU", t:"int"} ], TER.yearly),
+          toSheet("Por año y marca", "Precio y ventas por año de cada marca: "+groupTxt,
+            [ {h:"Año", k:"y", t:"int"}, {h:"Marca", k:"prod", t:"text"}, {h:"Laboratorio (titular)", k:"lab", t:"text"}, {h:"Concentración", k:"conc", t:"text"}, {h:"Precio promedio por unidad (COP)", k:"price", t:"money"}, {h:"Unidades", k:"u", t:"int"}, {h:"Ventas (COP)", k:"v", t:"money"} ],
+            [].concat.apply([], TER.yearly.map(r=> brandsY.filter(b=> b.byY.has(r.y)).map(b=>{ const x = b.byY.get(r.y); return { y:r.y, prod:b.prod, lab:b.lab, conc:b.conc, price:x.price, u:x.u, v:x.v }; })))),
         ]);
       }
 
@@ -1036,17 +1046,37 @@
         block("Precio promedio, mínimo y máximo por producto", (molMode ? "Todas las marcas de "+molName(i).toLowerCase()+" en "+(TER.form||"").toLowerCase()+" (cualquier concentración)" : "Marcas equivalentes al producto de referencia (mismo principio activo, concentración y forma)")+". Precio por unidad mínima de dispensación. El promedio es valor ÷ unidades; el mínimo y el máximo son los extremos que reportó algún actor en el año y suelen incluir errores de digitación o de unidad.",
           [ el("div",{class:"toolbar"},[ fieldset("Agrupar por", seg([{value:"marca",label:"Marca"},{value:"lab",label:"Laboratorio"}], TER.groupBy, (x)=>{ TER.groupBy = x; drawBrands(); }, "Agrupar por")) ]), brandsHolder ],
           xlBtn("Excel", exportTer)),
-        block("Precio por año", "El producto de referencia frente "+refA()+" y el rango normal de su grupo, con el mismo canal, en todos los años disponibles.", [ yearsHolder ], xlBtn("Excel", exportTer)),
-        block("Ventas totales por año", "Valor vendido cada año por el producto de referencia y por todo su grupo de comparación ("+groupTxt+"), con el mismo canal. Es la suma de lo reportado por el laboratorio, sin las marcas apartadas por precio atípico o ventas marginales.", [ salesHolder ], xlBtn("Excel", exportTer)),
+        block("Precio por año", "Precio por unidad de cada marca ("+groupTxt+"), con el producto de referencia resaltado, con el mismo canal y en todos los años disponibles. «Resumen del grupo» lo compara con "+refA()+" y el rango normal.", [ yearsHolder ], xlBtn("Excel", exportTer)),
+        block("Ventas totales por año", "Valor vendido cada año por cada marca ("+groupTxt+"), con el producto de referencia resaltado y el resto de las marcas agrupadas en «Otras». «Resumen del grupo» muestra el total del grupo frente al producto de referencia. Es lo reportado por el laboratorio, sin las marcas apartadas por precio atípico o ventas marginales.", [ salesHolder ], xlBtn("Excel", exportTer)),
       ]);
       drawBrands();
-      lineChart(yearsHolder, { label:"Precio por año", x: TER.yearly.map(r=> r.y), xLabel:(y)=> partial(y) ? y+"*" : String(y), fmt: money, tick:(x)=> "$ "+fmt(x),
-        series:[ { name:prodName(sel), cls:"s1", values: TER.yearly.map(r=> r.me) }, { name:refCap(), cls:"s3", values: TER.yearly.map(r=> r.med) },
-                 { name:"Límite bajo ("+bq[2]+")", cls:"s4", dash:true, values: TER.yearly.map(r=> r.p25) }, { name:"Límite alto ("+bq[3]+")", cls:"s5", dash:true, values: TER.yearly.map(r=> r.p75) } ] });
-      yearsHolder.appendChild(el("p",{class:"small muted"},["* Año parcial. Desde septiembre de 2026 rige la Circular 21 de 2026 (reporte por factura, con notas crédito y bonificaciones a precio cero): no compares esos meses con los años anteriores."]));
-      lineChart(salesHolder, { label:"Ventas totales por año", x: TER.yearly.map(r=> r.y), xLabel:(y)=> partial(y) ? y+"*" : String(y), fmt: moneyShort, tick: tickMoney,
-        series:[ { name:"Total del grupo ("+groupTxt+")", cls:"s3", values: TER.yearly.map(r=> r.grpV) }, { name:prodName(sel), cls:"s1", values: TER.yearly.map(r=> r.meV) } ] });
-      salesHolder.appendChild(el("p",{class:"small muted"},["* Año parcial: las ventas de un año con menos de cuatro trimestres publicados no son comparables con las de un año completo. Desde septiembre de 2026 rige la Circular 21 de 2026 (reporte por factura, con notas crédito y bonificaciones a precio cero): no compares esos meses con los años anteriores."]));
+      // Precio y ventas por año: una línea por marca (la de referencia resaltada) o el resumen del grupo
+      const TOPN = 7, partialNote = "* Año parcial. Desde septiembre de 2026 rige la Circular 21 de 2026 (reporte por factura, con notas crédito y bonificaciones a precio cero): no compares esos meses con los años anteriores.";
+      const yview = ()=> TER.yview || "marcas";
+      const viewSeg = ()=> seg([{value:"marcas", label: molMode ? "Todas las marcas" : "Marcas equivalentes"}, {value:"grupo", label:"Resumen del grupo"}], yview(), (x)=>{ TER.yview = x; drawYearly(); }, "Ver por");
+      function drawYearly(){
+        const xs = TER.yearly.map(r=> r.y), xl = (y)=> partial(y) ? y+"*" : String(y), byBrand = yview() === "marcas";
+        const top = brandsY.slice(0, TOPN), rest = brandsY.slice(TOPN);
+        let ci = 1;
+        const brandSeries = (pick, others)=>{ ci = 1;
+          const out = top.map(b=>({ name:b.name, cls: b.key === sel.cum ? "s1 ref" : "s"+(++ci), values: xs.map(y=>{ const x = b.byY.get(y); return x ? x[pick] : null; }) }));
+          if(others && rest.length) out.push({ name:"Otras "+rest.length+" marcas", cls:"s8", values: xs.map(y=>{ let t = 0, n = 0; rest.forEach(b=>{ const x = b.byY.get(y); if(x){ t += x[pick]; n++; } }); return n ? t : null; }) });
+          return out; };
+        const note = brandsY.length > top.length ? " Se dibujan las "+top.length+" marcas de mayor venta de "+brandsY.length+(byBrand ? "; todas están en el Excel." : ".") : "";
+        yearsHolder.innerHTML = ""; salesHolder.innerHTML = "";
+        yearsHolder.appendChild(el("div",{class:"toolbar"},[ fieldset("Ver por", viewSeg()) ]));
+        salesHolder.appendChild(el("div",{class:"toolbar"},[ fieldset("Ver por", viewSeg()) ]));
+        lineChart(yearsHolder, { label:"Precio por año", x:xs, xLabel:xl, fmt: money, tick:(x)=> "$ "+fmt(x),
+          series: byBrand ? brandSeries("price", false)
+            : [ { name:prodName(sel), cls:"s1", values: TER.yearly.map(r=> r.me) }, { name:refCap(), cls:"s3", values: TER.yearly.map(r=> r.med) },
+                { name:"Límite bajo ("+bq[2]+")", cls:"s4", dash:true, values: TER.yearly.map(r=> r.p25) }, { name:"Límite alto ("+bq[3]+")", cls:"s5", dash:true, values: TER.yearly.map(r=> r.p75) } ] });
+        yearsHolder.appendChild(el("p",{class:"small muted"},[partialNote+(byBrand ? note : "")]));
+        lineChart(salesHolder, { label:"Ventas totales por año", x:xs, xLabel:xl, fmt: moneyShort, tick: tickMoney,
+          series: byBrand ? brandSeries("v", true)
+            : [ { name:"Total del grupo ("+groupTxt+")", cls:"s3", values: TER.yearly.map(r=> r.grpV) }, { name:prodName(sel), cls:"s1", values: TER.yearly.map(r=> r.meV) } ] });
+        salesHolder.appendChild(el("p",{class:"small muted"},["* Año parcial: las ventas de un año con menos de cuatro trimestres publicados no son comparables con las de un año completo. Desde septiembre de 2026 rige la Circular 21 de 2026 (reporte por factura, con notas crédito y bonificaciones a precio cero): no compares esos meses con los años anteriores."+(byBrand ? note : "")]));
+      }
+      drawYearly();
     });
   };
 

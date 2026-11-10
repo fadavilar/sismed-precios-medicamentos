@@ -188,6 +188,8 @@ select:focus, input:focus{ outline:none; border-color:var(--brand); box-shadow:0
 .legend-item{ display:inline-flex; align-items:center; gap:7px; }
 .sw{ display:inline-block; width:16px; height:4px; border-radius:2px; }
 .sw.s1{ background:var(--s1); } .sw.s2{ background:var(--s2); } .sw.s3{ background:var(--s3); } .sw.s4{ background:var(--s4); } .sw.s5{ background:var(--s5); }
+.sw.s6{ background:var(--c6); } .sw.s7{ background:var(--c7); } .sw.s8{ background:var(--c8); }
+.sw.ref{ height:6px; }
 .sw.dash{ height:2px; }
 .line-plot svg{ display:block; width:100%; height:auto; overflow:visible; }
 .grid-line{ stroke:var(--grid); } .axis-line{ stroke:var(--axis); }
@@ -195,7 +197,10 @@ select:focus, input:focus{ outline:none; border-color:var(--brand); box-shadow:0
 .series{ fill:none; stroke-width:2.2; stroke-linejoin:round; stroke-linecap:round; }
 .series.dash{ stroke-dasharray:5 4; stroke-width:1.6; }
 .series.s1{ stroke:var(--s1); } .series.s2{ stroke:var(--s2); } .series.s3{ stroke:var(--s3); } .series.s4{ stroke:var(--s4); } .series.s5{ stroke:var(--s5); }
+.series.s6{ stroke:var(--c6); } .series.s7{ stroke:var(--c7); } .series.s8{ stroke:var(--c8); stroke-dasharray:2 4; }
+.series.ref{ stroke-width:3.6; }
 .dot{ stroke:var(--paper); stroke-width:2; }
+.dot.s6{ fill:var(--c6); } .dot.s7{ fill:var(--c7); } .dot.s8{ fill:var(--c8); }
 .dot.s1{ fill:var(--s1); } .dot.s2{ fill:var(--s2); } .dot.s3{ fill:var(--s3); } .dot.s4{ fill:var(--s4); } .dot.s5{ fill:var(--s5); }
 .crosshair{ stroke:var(--muted); stroke-dasharray:3 3; }
 .overlay{ fill:transparent; cursor:crosshair; outline:none; }
